@@ -1,8 +1,10 @@
 # Install dependencies as needed:
-# pip install kagglehub[pandas-datasets] matplotlib
+# pip install kagglehub[pandas-datasets] matplotlib mplcursors
 import kagglehub
 from kagglehub import KaggleDatasetAdapter
+from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
+import mplcursors
 import numpy as np
 import pandas as pd
 
@@ -91,6 +93,23 @@ slopes_df["CompanyName"] = slopes_df["Ticker"].map(company_names)
 missing_names = slopes_df.loc[slopes_df["CompanyName"].isna(), "Ticker"]
 if not missing_names.empty:
   print(f"Company names not found for: {', '.join(missing_names)}")
+pe_data_url = (
+  "https://datahub.io/core/s-and-p-500-companies-financials/"
+  "_r/-/data/constituents-financials.csv"
+)
+pe_data = pd.read_csv(pe_data_url)
+pe_by_ticker = pd.to_numeric(
+  pe_data.set_index("Symbol")["Price/Earnings"],
+  errors="coerce",
+)
+slopes_df["PERatio"] = slopes_df["Ticker"].map(pe_by_ticker)
+valid_pe = slopes_df["PERatio"].notna() & slopes_df["PERatio"].gt(0)
+invalid_pe_tickers = slopes_df.loc[~valid_pe, "Ticker"]
+if not invalid_pe_tickers.empty:
+  print(
+    "P/E unavailable or nonpositive for: "
+    f"{', '.join(invalid_pe_tickers)}"
+  )
 slopes_df["ChartLabel"] = slopes_df.apply(
   lambda row: (
     f"{row['Ticker']} - {row['CompanyName']}"
@@ -101,24 +120,52 @@ slopes_df["ChartLabel"] = slopes_df.apply(
 )
 
 fig, ax = plt.subplots(figsize=(12, 8), dpi=100)
-colors = [
-  "seagreen" if slope >= 0 else "indianred"
-  for slope in slopes_df["AnnualPercentageSlope"]
-]
-ax.scatter(
+pe_cmap = LinearSegmentedColormap.from_list(
+  "pe_ratio",
+  ["green", "red", "black"],
+)
+point_colors = np.full(len(slopes_df), "#9e9e9e", dtype=object)
+pe_norm = None
+if valid_pe.any():
+  valid_pe_values = slopes_df.loc[valid_pe, "PERatio"]
+  pe_norm = plt.Normalize(
+    vmin=valid_pe_values.min(),
+    vmax=valid_pe_values.max(),
+  )
+  for index, color in zip(
+    np.flatnonzero(valid_pe.to_numpy()),
+    pe_cmap(pe_norm(valid_pe_values)),
+  ):
+    point_colors[index] = color
+
+scatter = ax.scatter(
   slopes_df["MeanSquaredReturnChange"],
   slopes_df["AnnualPercentageSlope"],
-  color=colors,
+  c=point_colors,
   alpha=0.75,
 )
 for row in slopes_df.itertuples(index=False):
   ax.annotate(
-    row.ChartLabel,
+    row.Ticker,
     (row.MeanSquaredReturnChange, row.AnnualPercentageSlope),
     xytext=(4, 3),
     textcoords="offset points",
     fontsize=6,
   )
+
+cursor = mplcursors.cursor(scatter, hover=True)
+
+@cursor.connect("add")
+def show_ticker_details(selection):
+  row = slopes_df.iloc[selection.index]
+  pe_label = f"{row['PERatio']:.2f}" if pd.notna(row["PERatio"]) else "N/A"
+  selection.annotation.set_text(
+    f"{row['ChartLabel']}\n"
+    f"Slope: {row['AnnualPercentageSlope']:.2f}% per year\n"
+    f"Smoothness: {row['MeanSquaredReturnChange']:.4f}\n"
+    f"P/E ratio: {pe_label}"
+  )
+
 ax.set_xlabel("Smoothness: mean squared change in monthly log returns (lower is smoother)")
 ax.set_ylabel("Average annual price change (% of starting price)")
 ax.set_xscale("log")
@@ -136,7 +183,14 @@ ax.text(
   bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"},
 )
 ax.grid(linestyle="--", alpha=0.4)
-fig.tight_layout(rect=[0, 0, 0.78, 1])
+fig.tight_layout(rect=[0, 0, 0.75, 1])
+if pe_norm is not None:
+  colorbar_ax = fig.add_axes([0.76, 0.12, 0.015, 0.75])
+  fig.colorbar(
+    plt.cm.ScalarMappable(norm=pe_norm, cmap=pe_cmap),
+    cax=colorbar_ax,
+    label="P/E ratio",
+  )
 table_ax = fig.add_axes([0.81, 0.04, 0.17, 0.92])
 table_ax.axis("off")
 table_ax.set_title("Top 20 by slope", pad=4)
