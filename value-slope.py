@@ -1,5 +1,8 @@
 # Install dependencies as needed:
 # pip install kagglehub[pandas-datasets] matplotlib mplcursors
+import json
+from pathlib import Path
+
 import kagglehub
 from kagglehub import KaggleDatasetAdapter
 from matplotlib.colors import LinearSegmentedColormap
@@ -79,8 +82,8 @@ print(f"Plotting {len(slopes_df)} tickers.")
 
 for row in slopes_df.itertuples(index=False):
   print(
-    f"{row.Ticker}: {row.AnnualPercentageSlope:.4f}% per year, "
-    f"smoothness={row.MeanSquaredReturnChange:.8f}"
+    f"{row.Ticker}: {row.AnnualPercentageSlope:.0f}% per year, "
+    f"smoothness={row.MeanSquaredReturnChange:.3f}"
   )
 
 ticker_data_url = (
@@ -122,7 +125,7 @@ slopes_df["ChartLabel"] = slopes_df.apply(
 fig, ax = plt.subplots(figsize=(12, 8), dpi=100)
 pe_cmap = LinearSegmentedColormap.from_list(
   "pe_ratio",
-  ["green", "red", "black"],
+  ["#008000", "#FFFF00", "#FFA500", "#FF0000", "#800080", "#00008B", "#000000"],
 )
 point_colors = np.full(len(slopes_df), "#9e9e9e", dtype=object)
 pe_norm = None
@@ -161,8 +164,8 @@ def show_ticker_details(selection):
   pe_label = f"{row['PERatio']:.2f}" if pd.notna(row["PERatio"]) else "N/A"
   selection.annotation.set_text(
     f"{row['ChartLabel']}\n"
-    f"Slope: {row['AnnualPercentageSlope']:.2f}% per year\n"
-    f"Smoothness: {row['MeanSquaredReturnChange']:.4f}\n"
+    f"Slope: {row['AnnualPercentageSlope']:.0f}% per year\n"
+    f"Smoothness: {row['MeanSquaredReturnChange']:.3f}\n"
     f"P/E ratio: {pe_label}"
   )
 
@@ -173,11 +176,41 @@ ax.set_yscale("log")
 ax.set_title(f"Top {len(slopes_df)} tickers: annual slope vs. smoothness")
 average_slope = slopes_df["AnnualPercentageSlope"].mean()
 average_smoothness = slopes_df["MeanSquaredReturnChange"].mean()
+json_columns = {
+  "Ticker": "ticker",
+  "CompanyName": "companyName",
+  "AnnualPercentageSlope": "annualPercentageSlope",
+  "MeanSquaredReturnChange": "meanSquaredReturnChange",
+  "PERatio": "peRatio",
+}
+stocks = json.loads(
+  slopes_df[list(json_columns)]
+  .rename(columns=json_columns)
+  .to_json(orient="records")
+)
+json_path = Path(__file__).with_name("value-slope.json")
+with json_path.open("w", encoding="utf-8") as json_file:
+  json.dump(
+    {
+      "generatedAt": pd.Timestamp.now(tz="UTC").isoformat(),
+      "averages": {
+        "annualPercentageSlope": average_slope,
+        "meanSquaredReturnChange": average_smoothness,
+      },
+      "stocks": stocks,
+    },
+    json_file,
+    ensure_ascii=False,
+    indent=2,
+    allow_nan=False,
+  )
+print(f"Wrote chart data to {json_path}")
+
 ax.text(
   0.02,
   0.98,
   f"Average slope: {average_slope:.0f}% per year\n"
-  f"Average smoothness: {average_smoothness:.4f}",
+  f"Average smoothness: {average_smoothness:.3f}",
   transform=ax.transAxes,
   va="top",
   bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"},
@@ -196,7 +229,7 @@ table_ax.axis("off")
 table_ax.set_title("Top 20 by slope", pad=4)
 top_table = table_ax.table(
   cellText=[
-    [row.Ticker, f"{row.AnnualPercentageSlope:.2f}%"]
+    [row.Ticker, f"{row.AnnualPercentageSlope:.0f}%"]
     for row in slopes_df.head(20).itertuples(index=False)
   ],
   colLabels=["Ticker", "Slope (%/year)"],
@@ -206,4 +239,4 @@ top_table = table_ax.table(
 top_table.scale(1, 0.9)
 plt.show()
 
-# Next Steps: add P/E ratio with color green is low, red is high: https://datahub.io/core/s-and-p-500-companies-financials > contituents-financial (My Downloads)
+# P/E colors progress from green (low) to black (high).
