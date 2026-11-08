@@ -1,24 +1,55 @@
 # Value Slope
 
-This script compares annualized stock-price change with return smoothness for the top 50 tickers over the filtered five-year period. It prints the metrics and displays a chart with:
+Value Slope compares annualized stock-price changes with return smoothness for S&P 500 tickers. It loads market data with KaggleHub, analyzes the latest five-year period, and displays a chart of the 50 tickers with the highest annualized price change.
 
-- Ticker and company-name labels for each plotted data point.
-- Average annual slope and average smoothness.
-- A table of the top 20 tickers ranked by annual slope.
-- Logarithmic scales for both axes, including annual price change on the vertical axis and smoothness on the horizontal axis.
+## Features
 
-Lower mean squared changes in monthly log returns indicate smoother returns. 
+- Calculates annualized price change from each ticker's first and last valid monthly closing prices.
+- Measures return smoothness as the mean squared change in monthly log returns; lower values indicate smoother returns.
+- Displays ticker and company names for plotted points, plus the average slope and average smoothness.
+- Includes a table of the top 20 tickers ranked by annualized slope.
+- Uses logarithmic scales for both axes. Values must be positive to appear on a logarithmic axis.
 
-Install the required packages with:
+## Requirements
+
+Python and the following packages:
+
+- `kagglehub[pandas-datasets]`
+- `matplotlib`
+- `numpy`
+- `pandas`
+
+## Installation
+
+Install the required packages:
 
 ```powershell
 python -m pip install "kagglehub[pandas-datasets]" matplotlib numpy pandas
 ```
 
-Run with `python value-slope.py`.
+## Usage
 
-![Stock slope and smoothness chart](screenshot.png)
+Run the script from the project directory:
 
-## Next Steps
+```powershell
+python value-slope.py
+```
 
-Add P/E ratio with color green is low, red is high: [S&P 500 companies with financial info > Constituents Financials](https://datahub.io/core/s-and-p-500-companies-financials/_r/-/data/constituents-financials.csv)
+The script loads `SnP_daily_update.csv` from the Kaggle dataset and opens the chart in a Matplotlib window. It also prints each plotted ticker's annualized slope and smoothness to the console.
+
+## Chart
+
+![Value Slope chart showing annualized price change and return smoothness](screenshot.png)
+
+## Project structure
+
+```text
+value-slope/
+├── README.md
+├── screenshot.png
+└── value-slope.py
+```
+
+## Next steps
+
+- Add price-to-earnings (P/E) ratio data to the chart, using the [S&P 500 companies financials dataset](https://datahub.io/core/s-and-p-500-companies-financials/_r/-/data/constituents-financials.csv).
