@@ -68,7 +68,7 @@ slopes_df = pd.DataFrame(
   slopes,
   columns=["Ticker", "AnnualPercentageSlope", "MeanSquaredReturnChange"],
 )
-slopes_df = slopes_df.loc[slopes_df["Ticker"] != "SNDK"]
+# slopes_df = slopes_df.loc[slopes_df["Ticker"] != "SNDK"]
 slopes_df = slopes_df.sort_values(
   "AnnualPercentageSlope", ascending=False
 ).reset_index(drop=True)
@@ -100,7 +100,7 @@ slopes_df["ChartLabel"] = slopes_df.apply(
   axis=1,
 )
 
-fig, ax = plt.subplots(figsize=(18, 12), dpi=150)
+fig, ax = plt.subplots(figsize=(12, 8), dpi=100)
 colors = [
   "seagreen" if slope >= 0 else "indianred"
   for slope in slopes_df["AnnualPercentageSlope"]
@@ -121,9 +121,35 @@ for row in slopes_df.itertuples(index=False):
   )
 ax.set_xlabel("Smoothness: mean squared change in monthly log returns (lower is smoother)")
 ax.set_ylabel("Average annual price change (% of starting price)")
+ax.set_xscale("log")
+ax.set_yscale("log")
 ax.set_title(f"Top {len(slopes_df)} tickers: annual slope vs. smoothness")
+average_slope = slopes_df["AnnualPercentageSlope"].mean()
+average_smoothness = slopes_df["MeanSquaredReturnChange"].mean()
+ax.text(
+  0.02,
+  0.98,
+  f"Average slope: {average_slope:.0f}% per year\n"
+  f"Average smoothness: {average_smoothness:.4f}",
+  transform=ax.transAxes,
+  va="top",
+  bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "none"},
+)
 ax.grid(linestyle="--", alpha=0.4)
-fig.tight_layout()
+fig.tight_layout(rect=[0, 0, 0.78, 1])
+table_ax = fig.add_axes([0.81, 0.04, 0.17, 0.92])
+table_ax.axis("off")
+table_ax.set_title("Top 20 by slope", pad=4)
+top_table = table_ax.table(
+  cellText=[
+    [row.Ticker, f"{row.AnnualPercentageSlope:.2f}%"]
+    for row in slopes_df.head(20).itertuples(index=False)
+  ],
+  colLabels=["Ticker", "Slope (%/year)"],
+  cellLoc="center",
+  loc="upper center",
+)
+top_table.scale(1, 0.9)
 plt.show()
 
 # Next Steps: add P/E ratio with color green is low, red is high: https://datahub.io/core/s-and-p-500-companies-financials > contituents-financial (My Downloads)
